@@ -1,34 +1,61 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing, LaneColors } from "@/constants/theme";
-import { Race, formatTime } from "@/types/swim";
+import { Race, formatTime, getRelayTeamMembers, isRelayRace, getRaceGender } from "@/types/swim";
 
 interface ResultRowProps {
   race: Race;
   rank: number;
   showMedal?: boolean;
   showPoints?: boolean;
-  showGender?: boolean;
 }
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function ResultRow({
   race,
   rank,
   showMedal = true,
   showPoints = true,
-  showGender = true,
 }: ResultRowProps) {
   const { theme } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const scale = useSharedValue(1);
 
-  const swimmerName =
-    race.firstName && race.lastName
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.98, { damping: 15, stiffness: 150 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+  };
+
+  const isRelay = isRelayRace(race);
+  const teamMembers = getRelayTeamMembers(race);
+  const raceGender = getRaceGender(race);
+
+  const swimmerName = isRelay
+    ? race.firstName || race.swimClubName || "Lag"
+    : race.firstName && race.lastName
       ? `${race.firstName} ${race.lastName}`
-      : race.lastName || race.calculatedTeamNames?.[0]?.name || "Ukjent";
+      : race.lastName || "Ukjent";
 
-  const hasTime = race.estimatedFinalTime && race.estimatedFinalTime > 0;
+  const hasTime = (race.estimatedFinalTime && race.estimatedFinalTime > 0) || (race.finalTime && race.finalTime > 0);
+  const displayTime = race.finalTime || race.estimatedFinalTime || 0;
   const laneColor = LaneColors[(race.lane - 1) % LaneColors.length];
 
   const getMedalColor = (rank: number) => {
@@ -38,140 +65,151 @@ export function ResultRow({
     return theme.backgroundSecondary;
   };
 
-  const getMedalIcon = (rank: number): string | null => {
-    if (rank <= 3) return "award";
-    return null;
+  const genderColor = raceGender === "male" ? "#0066CC" : raceGender === "female" ? "#FF2D55" : theme.textSecondary;
+  const genderLabel = raceGender === "male" ? "M" : raceGender === "female" ? "K" : null;
+
+  const handlePress = () => {
+    if (isRelay && teamMembers.length > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setExpanded(!expanded);
+    }
   };
 
-  const genderColor = race.gender === 1 ? "#0066CC" : race.gender === 2 ? "#FF2D55" : theme.textSecondary;
-  const genderLabel = race.gender === 1 ? "M" : race.gender === 2 ? "K" : null;
-
-  const isRelay = race.calculatedTeamNames && race.calculatedTeamNames.length > 1;
-
   return (
-    <View
+    <AnimatedPressable
+      onPress={handlePress}
+      onPressIn={isRelay ? handlePressIn : undefined}
+      onPressOut={isRelay ? handlePressOut : undefined}
+      disabled={!isRelay}
       style={[
         styles.container,
         {
           backgroundColor: theme.cardBackground,
           borderColor: theme.border,
         },
+        animatedStyle,
       ]}
     >
-      <View style={styles.leftSection}>
-        {showMedal && hasTime ? (
-          <View
-            style={[
-              styles.rankBadge,
-              { backgroundColor: getMedalColor(rank) },
-            ]}
-          >
-            {getMedalIcon(rank) ? (
-              <Feather
-                name="award"
-                size={14}
-                color={rank <= 3 ? "#000000" : theme.text}
-              />
-            ) : (
-              <ThemedText
-                style={[
-                  styles.rankText,
-                  { color: rank <= 3 ? "#000000" : theme.text },
-                ]}
-              >
-                {rank}
-              </ThemedText>
-            )}
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.rankBadge,
-              { backgroundColor: theme.backgroundSecondary },
-            ]}
-          >
-            <ThemedText style={[styles.rankText, { color: theme.text }]}>
-              {hasTime ? rank : "-"}
-            </ThemedText>
-          </View>
-        )}
-
-        <View style={[styles.laneIndicator, { backgroundColor: laneColor }]}>
-          <ThemedText style={styles.laneText}>{race.lane}</ThemedText>
-        </View>
-      </View>
-
-      <View style={styles.infoSection}>
-        <View style={styles.nameRow}>
-          <ThemedText type="body" style={styles.swimmerName} numberOfLines={1}>
-            {swimmerName}
-          </ThemedText>
-          {showGender && genderLabel ? (
+      <View style={styles.mainRow}>
+        <View style={styles.leftSection}>
+          {showMedal && hasTime && rank <= 3 ? (
             <View
-              style={[styles.genderBadge, { backgroundColor: genderColor + "20" }]}
+              style={[styles.rankBadge, { backgroundColor: getMedalColor(rank) }]}
             >
-              <ThemedText style={[styles.genderText, { color: genderColor }]}>
-                {genderLabel}
+              <Feather name="award" size={14} color="#000000" />
+            </View>
+          ) : (
+            <View
+              style={[styles.rankBadge, { backgroundColor: theme.backgroundSecondary }]}
+            >
+              <ThemedText style={[styles.rankText, { color: theme.text }]}>
+                {hasTime ? rank : "-"}
               </ThemedText>
             </View>
-          ) : null}
-        </View>
+          )}
 
-        <View style={styles.detailsRow}>
-          {race.swimClubName ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
-              {race.swimClubName}
-            </ThemedText>
-          ) : null}
-          {race.birthYear ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {race.birthYear}
-            </ThemedText>
-          ) : null}
-        </View>
-
-        {isRelay ? (
-          <View style={styles.relayTeam}>
-            {race.calculatedTeamNames?.map((member, idx) => (
-              <ThemedText
-                key={idx}
-                style={[styles.relayMember, { color: theme.textSecondary }]}
-                numberOfLines={1}
-              >
-                {idx + 1}. {member.name}
-                {member.time ? ` (${formatTime(member.time)})` : ""}
-              </ThemedText>
-            ))}
+          <View style={[styles.laneIndicator, { backgroundColor: laneColor }]}>
+            <ThemedText style={styles.laneText}>{race.lane}</ThemedText>
           </View>
-        ) : null}
+        </View>
+
+        <View style={styles.infoSection}>
+          <View style={styles.nameRow}>
+            <ThemedText type="body" style={styles.swimmerName} numberOfLines={1}>
+              {swimmerName}
+            </ThemedText>
+            {genderLabel ? (
+              <View
+                style={[styles.genderBadge, { backgroundColor: genderColor + "20" }]}
+              >
+                <ThemedText style={[styles.genderText, { color: genderColor }]}>
+                  {genderLabel}
+                </ThemedText>
+              </View>
+            ) : null}
+            {isRelay ? (
+              <Feather
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={theme.textSecondary}
+              />
+            ) : null}
+          </View>
+
+          <View style={styles.detailsRow}>
+            {race.swimClubName && !isRelay ? (
+              <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
+                {race.swimClubName}
+              </ThemedText>
+            ) : null}
+            {race.birthYear && !isRelay ? (
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {race.birthYear}
+              </ThemedText>
+            ) : null}
+            {race.className ? (
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {race.className}
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.rightSection}>
+          <ThemedText
+            style={[
+              styles.time,
+              { color: hasTime ? theme.primary : theme.textSecondary },
+            ]}
+          >
+            {hasTime ? formatTime(displayTime) : "--:--"}
+          </ThemedText>
+          {showPoints && race.points && race.points > 0 ? (
+            <ThemedText style={[styles.points, { color: theme.textSecondary }]}>
+              {race.points} FINA
+            </ThemedText>
+          ) : null}
+        </View>
       </View>
 
-      <View style={styles.rightSection}>
-        <ThemedText
-          style={[
-            styles.time,
-            { color: hasTime ? theme.primary : theme.textSecondary },
-          ]}
-        >
-          {hasTime ? formatTime(race.estimatedFinalTime!) : "--:--"}
-        </ThemedText>
-        {showPoints && race.points && race.points > 0 ? (
-          <ThemedText style={[styles.points, { color: theme.textSecondary }]}>
-            {race.points} pt
+      {expanded && isRelay && teamMembers.length > 0 ? (
+        <View style={[styles.teamSection, { borderTopColor: theme.border }]}>
+          <ThemedText type="small" style={[styles.teamTitle, { color: theme.textSecondary }]}>
+            Lagmedlemmer:
           </ThemedText>
-        ) : null}
-      </View>
-    </View>
+          {teamMembers.map((member, idx) => (
+            <View key={idx} style={styles.teamMemberRow}>
+              <View style={[styles.memberNumber, { backgroundColor: theme.primary + "20" }]}>
+                <ThemedText style={[styles.memberNumberText, { color: theme.primary }]}>
+                  {idx + 1}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.memberName} numberOfLines={1}>
+                {member.name}
+              </ThemedText>
+              {member.time ? (
+                <ThemedText style={[styles.memberTime, { color: theme.primary }]}>
+                  {formatTime(member.time)}
+                </ThemedText>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
+    overflow: "hidden",
+  },
+  mainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
     gap: Spacing.sm,
   },
   leftSection: {
@@ -227,14 +265,7 @@ const styles = StyleSheet.create({
   detailsRow: {
     flexDirection: "row",
     gap: Spacing.sm,
-  },
-  relayTeam: {
-    marginTop: Spacing.xs,
-    paddingTop: Spacing.xs,
-    gap: 2,
-  },
-  relayMember: {
-    fontSize: 12,
+    flexWrap: "wrap",
   },
   rightSection: {
     alignItems: "flex-end",
@@ -245,7 +276,43 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   points: {
-    fontSize: 12,
+    fontSize: 11,
+    fontVariant: ["tabular-nums"],
+  },
+  teamSection: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    gap: Spacing.xs,
+  },
+  teamTitle: {
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  teamMemberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  memberNumber: {
+    width: 20,
+    height: 20,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberNumberText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  memberName: {
+    flex: 1,
+    fontSize: 14,
+  },
+  memberTime: {
+    fontSize: 13,
+    fontWeight: "600",
     fontVariant: ["tabular-nums"],
   },
 });

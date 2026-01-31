@@ -40,6 +40,9 @@ export interface MeetEvent {
   strokeText?: string;
   genderText?: string;
   gender?: number;
+  eventDescription?: string;
+  eventLength?: string;
+  eventDate?: string;
 }
 
 export interface Session {
@@ -96,6 +99,11 @@ export interface LapTime {
   isSlower?: boolean;
 }
 
+export interface TeamMember {
+  name: string;
+  time?: number;
+}
+
 export interface Race {
   id?: number;
   lane: number;
@@ -108,8 +116,10 @@ export interface Race {
   birthYear?: string;
   swimClubName?: string;
   estimatedFinalTime?: number;
+  finalTime?: number;
   calculatedLapTimes?: LapTime[][];
-  calculatedTeamNames?: { name: string; time?: number }[];
+  calculatedTeamNames?: TeamMember[];
+  team?: TeamMember[];
   place?: number;
   points?: number;
   round?: number;
@@ -122,6 +132,14 @@ export interface Race {
   estimatedLaps?: any[];
   updateId?: number;
   gender?: number;
+  eventDescription?: string;
+  stroke?: string;
+  raceLength?: number;
+  className?: string;
+  rankByFinalTime?: number;
+  rankByClass?: number;
+  pointType?: string;
+  laps?: LapTime[];
 }
 
 export interface LiveRace extends Race {
@@ -164,22 +182,8 @@ export const STROKE_NAMES: Record<number, string> = {
   1: "Fri",
   2: "Rygg",
   3: "Bryst",
-  4: "Butterfly",
+  4: "Fri",
   5: "Medley",
-};
-
-export const DISTANCE_NAMES: Record<number, string> = {
-  1: "50m",
-  2: "100m",
-  3: "200m",
-  4: "400m",
-  5: "800m",
-  6: "1500m",
-  16: "50m",
-  17: "100m",
-  18: "200m",
-  25: "4x50m",
-  26: "4x100m",
 };
 
 export const POOL_LENGTH_NAMES: Record<number, string> = {
@@ -187,15 +191,8 @@ export const POOL_LENGTH_NAMES: Record<number, string> = {
   5000: "50m",
 };
 
-export const GENDER_NAMES: Record<number, string> = {
-  1: "Herrer",
-  2: "Damer",
-  0: "Blandet",
-  "-1": "Ukjent",
-};
-
 export function formatTime(milliseconds: number): string {
-  if (!milliseconds || milliseconds <= 0) return "--:--:--";
+  if (!milliseconds || milliseconds <= 0) return "--:--";
   
   const totalSeconds = Math.floor(milliseconds / 1000);
   const ms = Math.floor((milliseconds % 1000) / 10);
@@ -209,27 +206,34 @@ export function formatTime(milliseconds: number): string {
 }
 
 export function getEventName(event: MeetEvent): string {
-  const distance = DISTANCE_NAMES[event.medleyDistanceNumber] || `${event.medleyDistanceNumber}`;
-  const stroke = STROKE_NAMES[event.stroke] || "Ukjent";
-  return `${distance} ${stroke}`;
+  if (event.eventDescription) {
+    const match = event.eventDescription.match(/Øvelse \d+\.\s*(.+?)(?:\s*\(\d+\))?$/);
+    if (match) return match[1].trim();
+    return event.eventDescription;
+  }
+  
+  const length = event.eventLength || "";
+  const stroke = STROKE_NAMES[event.stroke] || "";
+  return `${length} ${stroke}`.trim() || `Øvelse ${event.eventNumber}`;
+}
+
+export function getEventGender(event: MeetEvent): "male" | "female" | "mixed" {
+  if (event.eventDescription) {
+    const desc = event.eventDescription.toLowerCase();
+    if (desc.includes("herrer") || desc.includes("gutter")) return "male";
+    if (desc.includes("damer") || desc.includes("jenter")) return "female";
+  }
+  if (event.gender === -1) return "female";
+  if (event.gender === 1 || event.gender === undefined) return "male";
+  return "mixed";
 }
 
 export function getPoolLengthName(poolLength: number): string {
-  return POOL_LENGTH_NAMES[poolLength] || `${poolLength / 100}m`;
-}
-
-export function getGenderName(gender: number): string {
-  return GENDER_NAMES[gender] || "Ukjent";
-}
-
-export function getGenderIcon(gender: number): string {
-  if (gender === 1) return "M";
-  if (gender === 2) return "K";
-  return "?";
+  return POOL_LENGTH_NAMES[poolLength] || `${Math.round(poolLength / 100)}m`;
 }
 
 export function isRelay(event: MeetEvent): boolean {
-  return event.relay > 0 || event.medleyDistanceNumber >= 25;
+  return event.relay === -1 || (event.eventLength?.includes("*") ?? false);
 }
 
 export function isMeetLive(startDate: string, endDate: string): boolean {
@@ -254,4 +258,28 @@ export function getMeetStatus(startDate: string, endDate: string): "upcoming" | 
   if (now < start) return "upcoming";
   if (now > end) return "finished";
   return "live";
+}
+
+export function getRaceGender(race: Race): "male" | "female" | "unknown" {
+  if (race.eventDescription) {
+    const desc = race.eventDescription.toLowerCase();
+    if (desc.includes("herrer") || desc.includes("gutter")) return "male";
+    if (desc.includes("damer") || desc.includes("jenter")) return "female";
+  }
+  return "unknown";
+}
+
+export function getRelayTeamMembers(race: Race): TeamMember[] {
+  if (race.team && race.team.length > 0) {
+    return race.team;
+  }
+  if (race.calculatedTeamNames && race.calculatedTeamNames.length > 0) {
+    return race.calculatedTeamNames;
+  }
+  return [];
+}
+
+export function isRelayRace(race: Race): boolean {
+  const teamMembers = getRelayTeamMembers(race);
+  return teamMembers.length > 1;
 }

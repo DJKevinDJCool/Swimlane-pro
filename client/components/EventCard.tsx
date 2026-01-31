@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
-import { MeetEvent, getEventName, isRelay, getGenderName, getPoolLengthName } from "@/types/swim";
+import { MeetEvent, getEventName, isRelay, getEventGender } from "@/types/swim";
 
 interface EventCardProps {
   event: MeetEvent;
@@ -41,7 +41,9 @@ export function EventCard({ event, onPress }: EventCardProps) {
   };
 
   const isRelayEvent = isRelay(event);
-  const genderColor = event.gender === 1 ? "#0066CC" : event.gender === 2 ? "#FF2D55" : theme.textSecondary;
+  const eventGender = getEventGender(event);
+  const genderColor = eventGender === "male" ? "#0066CC" : eventGender === "female" ? "#FF2D55" : theme.textSecondary;
+  const genderLabel = eventGender === "male" ? "Herrer" : eventGender === "female" ? "Damer" : "Blandet";
 
   return (
     <AnimatedPressable
@@ -66,45 +68,31 @@ export function EventCard({ event, onPress }: EventCardProps) {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <ThemedText type="h4" numberOfLines={1} style={styles.title}>
-            {getEventName(event)}
-          </ThemedText>
-          {event.gender && event.gender > 0 ? (
-            <View
-              style={[styles.genderBadge, { backgroundColor: genderColor + "20" }]}
-            >
-              <ThemedText style={[styles.genderText, { color: genderColor }]}>
-                {event.gender === 1 ? "M" : "K"}
+        <ThemedText type="h4" numberOfLines={1} style={styles.title}>
+          {getEventName(event)}
+        </ThemedText>
+        <View style={styles.meta}>
+          <View
+            style={[styles.genderBadge, { backgroundColor: genderColor + "20" }]}
+          >
+            <ThemedText style={[styles.genderText, { color: genderColor }]}>
+              {genderLabel}
+            </ThemedText>
+          </View>
+          {isRelayEvent ? (
+            <View style={styles.metaItem}>
+              <Feather name="users" size={14} color={theme.textSecondary} />
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Stafett
               </ThemedText>
             </View>
           ) : null}
-        </View>
-        <View style={styles.meta}>
-          <View style={styles.metaItem}>
-            <Feather
-              name={isRelayEvent ? "users" : "user"}
-              size={14}
-              color={theme.textSecondary}
-            />
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {isRelayEvent ? "Stafett" : "Individuell"}
-            </ThemedText>
-          </View>
           <View style={styles.metaItem}>
             <Feather name="layers" size={14} color={theme.textSecondary} />
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
               {event.antallHeat} heat
             </ThemedText>
           </View>
-          {event.poolLength ? (
-            <View style={styles.metaItem}>
-              <Feather name="droplet" size={14} color={theme.textSecondary} />
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {getPoolLengthName(event.poolLength)}
-              </ThemedText>
-            </View>
-          ) : null}
         </View>
       </View>
 
@@ -135,16 +123,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    gap: 4,
+    gap: 6,
   },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  title: {
-    flex: 1,
-  },
+  title: {},
   genderBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
@@ -156,7 +137,8 @@ const styles = StyleSheet.create({
   },
   meta: {
     flexDirection: "row",
-    gap: Spacing.md,
+    alignItems: "center",
+    gap: Spacing.sm,
     flexWrap: "wrap",
   },
   metaItem: {
