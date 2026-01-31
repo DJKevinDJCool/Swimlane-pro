@@ -68,3 +68,8 @@ task = "shell.exec"
 args = "npm run expo:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
+
+[userenv]
+
+[userenv.shared]
+SWIMIFY_API_KEY = "GkK9Mjfnxq44Zjs4QamHeduqy6ABM2PLvEmkLJuGNeMShdRMhZSPW6adj78qF6BB"
