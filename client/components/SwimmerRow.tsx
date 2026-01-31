@@ -15,11 +15,18 @@ import { Swimmer } from "@/types/swim";
 interface SwimmerRowProps {
   swimmer: Swimmer;
   onPress?: () => void;
+  showGender?: boolean;
+  showBirthYear?: boolean;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function SwimmerRow({ swimmer, onPress }: SwimmerRowProps) {
+export function SwimmerRow({
+  swimmer,
+  onPress,
+  showGender = false,
+  showBirthYear = false,
+}: SwimmerRowProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
 
@@ -48,6 +55,9 @@ export function SwimmerRow({ swimmer, onPress }: SwimmerRowProps) {
       : swimmer.lastName || "Ukjent";
 
   const hasLogo = swimmer.swimClubLogoUrl && swimmer.swimClubLogoUrl.length > 0;
+  
+  const genderColor = swimmer.gender === 1 ? "#0066CC" : swimmer.gender === 2 ? "#FF2D55" : theme.textSecondary;
+  const genderLabel = swimmer.gender === 1 ? "M" : swimmer.gender === 2 ? "K" : "?";
 
   return (
     <AnimatedPressable
@@ -72,9 +82,15 @@ export function SwimmerRow({ swimmer, onPress }: SwimmerRowProps) {
         />
       ) : (
         <View
-          style={[styles.avatarPlaceholder, { backgroundColor: theme.primary + "20" }]}
+          style={[styles.avatarPlaceholder, { backgroundColor: genderColor + "20" }]}
         >
-          <Feather name="user" size={20} color={theme.primary} />
+          {showGender ? (
+            <ThemedText style={[styles.genderText, { color: genderColor }]}>
+              {genderLabel}
+            </ThemedText>
+          ) : (
+            <Feather name="user" size={20} color={theme.primary} />
+          )}
         </View>
       )}
 
@@ -86,13 +102,23 @@ export function SwimmerRow({ swimmer, onPress }: SwimmerRowProps) {
           <ThemedText type="small" style={{ color: theme.textSecondary }}>
             {swimmer.swimClubName}
           </ThemedText>
-          {swimmer.birthYear ? (
+          {showBirthYear && swimmer.birthYear ? (
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
               {swimmer.birthYear}
             </ThemedText>
           ) : null}
         </View>
       </View>
+
+      {showGender && !hasLogo ? (
+        <View
+          style={[styles.genderBadge, { backgroundColor: genderColor + "20" }]}
+        >
+          <ThemedText style={[styles.genderBadgeText, { color: genderColor }]}>
+            {genderLabel}
+          </ThemedText>
+        </View>
+      ) : null}
 
       {onPress ? (
         <Feather name="chevron-right" size={20} color={theme.textSecondary} />
@@ -122,6 +148,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  genderText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
   content: {
     flex: 1,
     gap: 2,
@@ -132,5 +162,14 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: "row",
     gap: Spacing.sm,
+  },
+  genderBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  genderBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   StyleSheet,
   View,
   ScrollView,
   Image,
   RefreshControl,
+  Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -13,6 +14,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { SegmentedControl } from "@/components/SegmentedControl";
@@ -30,6 +32,9 @@ import {
   Swimmer,
   DocumentGroup,
   ScheduleEntry,
+  MeetStats,
+  getMeetStatus,
+  getPoolLengthName,
 } from "@/types/swim";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { getApiUrl } from "@/lib/query-client";
@@ -37,7 +42,7 @@ import { getApiUrl } from "@/lib/query-client";
 type RouteProps = RouteProp<RootStackParamList, "MeetDetails">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const TABS = ["Oversikt", "Øvelser", "Program", "Dokumenter", "Deltakere"];
+const TABS = ["Oversikt", "Øvelser", "Program", "Dokumenter"];
 
 async function fetchMeetDetails(meetId: string): Promise<MeetDetails> {
   const baseUrl = getApiUrl();
@@ -67,6 +72,28 @@ async function fetchSchedule(meetId: string): Promise<ScheduleEntry[]> {
   return res.json();
 }
 
+interface StatCardProps {
+  icon: string;
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+function StatCard({ icon, label, value, color }: StatCardProps) {
+  const { theme } = useTheme();
+  return (
+    <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
+      <Feather name={icon as any} size={20} color={color || theme.primary} />
+      <ThemedText style={[styles.statValue, { color: color || theme.text }]}>
+        {value}
+      </ThemedText>
+      <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
 export default function MeetDetailsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -80,6 +107,9 @@ export default function MeetDetailsScreen() {
 
   const meetId =
     meet.source === "swimlane" ? meet.medleyLivetimingPath : String(meet.id);
+
+  const meetStatus = getMeetStatus(meet.startDate, meet.endDate);
+  const isLive = meetStatus === "live";
 
   const { data: meetDetails, isLoading: detailsLoading, refetch: refetchDetails } = useQuery<MeetDetails>({
     queryKey: ["meetDetails", meetId],
@@ -104,6 +134,22 @@ export default function MeetDetailsScreen() {
     queryFn: () => fetchSchedule(meetId!),
     enabled: meet.source === "swimlane" && !!meetId,
   });
+
+  const stats: MeetStats = useMemo(() => {
+    const total = swimmers?.length || 0;
+    const males = swimmers?.filter((s) => s.gender === 1).length || 0;
+    const females = swimmers?.filter((s) => s.gender === 2).length || 0;
+    
+    const clubIds = new Set(swimmers?.map((s) => s.meetSwimClubNumber) || []);
+    const totalClubs = clubIds.size;
+    
+    const totalEvents = meetDetails?.sessions.reduce(
+      (sum, s) => sum + s.meetEvents.length,
+      0
+    ) || 0;
+
+    return { totalSwimmers: total, maleSwimmers: males, femaleSwimmers: females, totalClubs, totalEvents };
+  }, [swimmers, meetDetails]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -133,10 +179,34 @@ export default function MeetDetailsScreen() {
     });
   };
 
+  const handleClubsPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("Clubs", {
+      meetId: meetId as string,
+      meetName: meet.name,
+    });
+  };
+
+  const handleLivePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("MeetLive", {
+      meetId: meetId as string,
+      meetName: meet.name,
+    });
+  };
+
   const imageUrl = meet.largeImage || meet.smallImage || meet.meetLogoUrl;
+  const poolLength = meet.poolSize ? getPoolLengthName(meet.poolSize * 100) : meetDetails?.sessions?.[0]?.meetEvents?.[0]?.poolLength ? getPoolLengthName(meetDetails.sessions[0].meetEvents[0].poolLength) : null;
 
   const renderOverview = () => (
     <View style={styles.section}>
+      <View style={styles.statsGrid}>
+        <StatCard icon="users" label="Deltakere" value={stats.totalSwimmers} />
+        <StatCard icon="home" label="Klubber" value={stats.totalClubs} />
+        <StatCard icon="user" label="Herrer" value={stats.maleSwimmers} color="#0066CC" />
+        <StatCard icon="user" label="Damer" value={stats.femaleSwimmers} color="#FF2D55" />
+      </View>
+
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           <Feather name="map-pin" size={18} color={theme.primary} />
@@ -161,9 +231,46 @@ export default function MeetDetailsScreen() {
           <Feather name="droplet" size={18} color={theme.primary} />
           <ThemedText type="body">
             {meet.numberOfLanes} baner
-            {meet.poolName ? ` - ${meet.poolName}` : ""}
+            {poolLength ? ` - ${poolLength} basseng` : ""}
           </ThemedText>
         </View>
+      </View>
+
+      <View style={styles.actionButtons}>
+        <Pressable
+          onPress={handleClubsPress}
+          style={[styles.actionButton, { backgroundColor: theme.primary + "20" }]}
+        >
+          <Feather name="users" size={20} color={theme.primary} />
+          <ThemedText style={[styles.actionButtonText, { color: theme.primary }]}>
+            Se klubber
+          </ThemedText>
+          <Feather name="chevron-right" size={18} color={theme.primary} />
+        </Pressable>
+
+        {isLive ? (
+          <Pressable
+            onPress={handleLivePress}
+            style={[styles.actionButton, { backgroundColor: theme.liveIndicator + "20" }]}
+          >
+            <Feather name="activity" size={20} color={theme.liveIndicator} />
+            <ThemedText style={[styles.actionButtonText, { color: theme.liveIndicator }]}>
+              Se live resultater
+            </ThemedText>
+            <Feather name="chevron-right" size={18} color={theme.liveIndicator} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={handleLivePress}
+            style={[styles.actionButton, { backgroundColor: theme.success + "20" }]}
+          >
+            <Feather name="list" size={20} color={theme.success} />
+            <ThemedText style={[styles.actionButtonText, { color: theme.success }]}>
+              Se resultater
+            </ThemedText>
+            <Feather name="chevron-right" size={18} color={theme.success} />
+          </Pressable>
+        )}
       </View>
 
       {meetDetails?.sessions && meetDetails.sessions.length > 0 ? (
@@ -312,47 +419,6 @@ export default function MeetDetailsScreen() {
     );
   };
 
-  const renderSwimmers = () => {
-    if (swimmersLoading) {
-      return (
-        <View style={styles.section}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonLoader key={i} height={64} style={{ marginBottom: 12 }} />
-          ))}
-        </View>
-      );
-    }
-
-    if (!swimmers || swimmers.length === 0) {
-      return (
-        <EmptyState
-          image={require("../../assets/images/empty-swimmers.png")}
-          title="Ingen deltakere"
-          message="Deltakerlisten er ikke tilgjengelig for dette stevnet."
-        />
-      );
-    }
-
-    return (
-      <View style={styles.section}>
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>
-          {swimmers.length} deltakere
-        </ThemedText>
-        {swimmers.slice(0, 50).map((swimmer) => (
-          <SwimmerRow key={swimmer.id} swimmer={swimmer} />
-        ))}
-        {swimmers.length > 50 ? (
-          <ThemedText
-            type="small"
-            style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.md }}
-          >
-            +{swimmers.length - 50} flere deltakere
-          </ThemedText>
-        ) : null}
-      </View>
-    );
-  };
-
   const renderContent = () => {
     switch (selectedTab) {
       case 0:
@@ -363,8 +429,6 @@ export default function MeetDetailsScreen() {
         return renderSchedule();
       case 3:
         return renderDocuments();
-      case 4:
-        return renderSwimmers();
       default:
         return null;
     }
@@ -400,7 +464,7 @@ export default function MeetDetailsScreen() {
           <ThemedText type="h2" style={styles.title}>
             {meet.name}
           </ThemedText>
-          {meet.isLive ? <LiveBadge /> : null}
+          {isLive ? <LiveBadge /> : null}
         </View>
       </View>
 
@@ -462,6 +526,27 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: Spacing.sm,
   },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: "45%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 12,
+  },
   infoCard: {
     gap: Spacing.md,
   },
@@ -469,6 +554,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.md,
+  },
+  actionButtons: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+  },
+  actionButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
   },
   sessionsContainer: {
     marginTop: Spacing.xl,

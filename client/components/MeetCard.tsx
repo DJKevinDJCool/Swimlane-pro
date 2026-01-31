@@ -11,7 +11,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { LiveBadge } from "@/components/LiveBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing, Colors } from "@/constants/theme";
-import { Meet } from "@/types/swim";
+import { Meet, getMeetStatus, getPoolLengthName } from "@/types/swim";
 
 interface MeetCardProps {
   meet: Meet;
@@ -56,7 +56,12 @@ export function MeetCard({ meet, onPress }: MeetCardProps) {
     return `${startDate.toLocaleDateString("no-NO", { day: "numeric" })}-${endDate.toLocaleDateString("no-NO", options)}`;
   };
 
+  const meetStatus = getMeetStatus(meet.startDate, meet.endDate);
+  const isLive = meetStatus === "live";
+  const isFinished = meetStatus === "finished";
+
   const imageUrl = meet.largeImage || meet.smallImage || meet.meetLogoUrl;
+  const poolLength = meet.poolSize ? getPoolLengthName(meet.poolSize * 100) : null;
 
   return (
     <AnimatedPressable
@@ -67,7 +72,8 @@ export function MeetCard({ meet, onPress }: MeetCardProps) {
         styles.container,
         {
           backgroundColor: theme.cardBackground,
-          borderColor: theme.border,
+          borderColor: isLive ? theme.liveIndicator : theme.border,
+          borderWidth: isLive ? 2 : 1,
         },
         animatedStyle,
       ]}
@@ -91,7 +97,19 @@ export function MeetCard({ meet, onPress }: MeetCardProps) {
             <ThemedText type="h4" numberOfLines={1} style={styles.title}>
               {meet.name}
             </ThemedText>
-            {meet.isLive ? <LiveBadge size="small" /> : null}
+            {isLive ? <LiveBadge size="small" /> : null}
+            {isFinished ? (
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: theme.success + "20" },
+                ]}
+              >
+                <ThemedText style={[styles.statusText, { color: theme.success }]}>
+                  Fullført
+                </ThemedText>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.metaRow}>
@@ -115,13 +133,24 @@ export function MeetCard({ meet, onPress }: MeetCardProps) {
           </View>
 
           <View style={styles.footer}>
-            <ThemedText
-              type="small"
-              style={{ color: theme.textSecondary }}
-              numberOfLines={1}
-            >
-              {meet.organizer}
-            </ThemedText>
+            <View style={styles.footerLeft}>
+              <ThemedText
+                type="small"
+                style={{ color: theme.textSecondary }}
+                numberOfLines={1}
+              >
+                {meet.organizer}
+              </ThemedText>
+              {poolLength ? (
+                <View style={styles.poolBadge}>
+                  <ThemedText
+                    style={[styles.poolText, { color: theme.textSecondary }]}
+                  >
+                    {poolLength}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
 
             <View
               style={[
@@ -169,7 +198,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
     overflow: "hidden",
   },
   image: {
@@ -199,6 +227,15 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
   },
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -213,6 +250,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  poolBadge: {
+    paddingHorizontal: Spacing.xs,
+  },
+  poolText: {
+    fontSize: 11,
+    fontWeight: "500",
   },
   sourceBadge: {
     paddingHorizontal: Spacing.sm,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { StyleSheet, View, FlatList, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -13,17 +13,17 @@ import { MeetCardSkeleton } from "@/components/SkeletonLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
-import { Meet } from "@/types/swim";
+import { Meet, getMeetStatus } from "@/types/swim";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { getApiUrl } from "@/lib/query-client";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-async function fetchLiveMeets(): Promise<Meet[]> {
+async function fetchMeets(): Promise<Meet[]> {
   const baseUrl = getApiUrl();
-  const url = new URL("/api/meets/live", baseUrl);
+  const url = new URL("/api/meets?filter=all", baseUrl);
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch live meets");
+  if (!res.ok) throw new Error("Failed to fetch meets");
   return res.json();
 }
 
@@ -36,12 +36,20 @@ export default function LiveScreen() {
   
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: liveMeets, isLoading, refetch } = useQuery<Meet[]>({
-    queryKey: ["liveMeets"],
-    queryFn: fetchLiveMeets,
-    staleTime: 10000,
-    refetchInterval: 30000,
+  const { data: allMeets, isLoading, refetch } = useQuery<Meet[]>({
+    queryKey: ["allMeets"],
+    queryFn: fetchMeets,
+    staleTime: 60000,
+    refetchInterval: 60000,
   });
+
+  const liveMeets = useMemo(() => {
+    if (!allMeets) return [];
+    return allMeets.filter((meet) => {
+      const status = getMeetStatus(meet.startDate, meet.endDate);
+      return status === "live";
+    });
+  }, [allMeets]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -69,7 +77,7 @@ export default function LiveScreen() {
     <EmptyState
       image={require("../../assets/images/empty-lanes.png")}
       title="Ingen aktive stevner"
-      message="Det er ingen stevner med live resultater akkurat nå. Sjekk tilbake senere!"
+      message="Det er ingen stevner som pågår akkurat nå. Sjekk tilbake når et stevne er i gang!"
       actionLabel="Oppdater"
       onAction={onRefresh}
     />
@@ -96,6 +104,13 @@ export default function LiveScreen() {
             onRefresh={onRefresh}
             tintColor={theme.primary}
           />
+        }
+        ListHeaderComponent={
+          liveMeets.length > 0 ? (
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>
+              {liveMeets.length} stevne{liveMeets.length === 1 ? "" : "r"} pågår nå
+            </ThemedText>
+          ) : null
         }
         ListEmptyComponent={isLoading ? renderSkeleton : renderEmpty}
         ItemSeparatorComponent={() => <View style={styles.separator} />}

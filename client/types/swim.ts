@@ -39,6 +39,7 @@ export interface MeetEvent {
   distanceText?: string;
   strokeText?: string;
   genderText?: string;
+  gender?: number;
 }
 
 export interface Session {
@@ -78,6 +79,17 @@ export interface Swimmer {
   swimClubLogoUrl?: string;
 }
 
+export interface Club {
+  id: number;
+  name: string;
+  shortName?: string;
+  logoUrl?: string;
+  countryCode?: string;
+  swimmerCount: number;
+  maleCount: number;
+  femaleCount: number;
+}
+
 export interface LapTime {
   time?: number;
   step?: number;
@@ -109,6 +121,7 @@ export interface Race {
   speed?: number;
   estimatedLaps?: any[];
   updateId?: number;
+  gender?: number;
 }
 
 export interface LiveRace extends Race {
@@ -139,6 +152,14 @@ export interface DocumentGroup {
   documents: Document[];
 }
 
+export interface MeetStats {
+  totalSwimmers: number;
+  maleSwimmers: number;
+  femaleSwimmers: number;
+  totalClubs: number;
+  totalEvents: number;
+}
+
 export const STROKE_NAMES: Record<number, string> = {
   1: "Fri",
   2: "Rygg",
@@ -161,6 +182,18 @@ export const DISTANCE_NAMES: Record<number, string> = {
   26: "4x100m",
 };
 
+export const POOL_LENGTH_NAMES: Record<number, string> = {
+  2500: "25m",
+  5000: "50m",
+};
+
+export const GENDER_NAMES: Record<number, string> = {
+  1: "Herrer",
+  2: "Damer",
+  0: "Blandet",
+  "-1": "Ukjent",
+};
+
 export function formatTime(milliseconds: number): string {
   if (!milliseconds || milliseconds <= 0) return "--:--:--";
   
@@ -179,4 +212,46 @@ export function getEventName(event: MeetEvent): string {
   const distance = DISTANCE_NAMES[event.medleyDistanceNumber] || `${event.medleyDistanceNumber}`;
   const stroke = STROKE_NAMES[event.stroke] || "Ukjent";
   return `${distance} ${stroke}`;
+}
+
+export function getPoolLengthName(poolLength: number): string {
+  return POOL_LENGTH_NAMES[poolLength] || `${poolLength / 100}m`;
+}
+
+export function getGenderName(gender: number): string {
+  return GENDER_NAMES[gender] || "Ukjent";
+}
+
+export function getGenderIcon(gender: number): string {
+  if (gender === 1) return "M";
+  if (gender === 2) return "K";
+  return "?";
+}
+
+export function isRelay(event: MeetEvent): boolean {
+  return event.relay > 0 || event.medleyDistanceNumber >= 25;
+}
+
+export function isMeetLive(startDate: string, endDate: string): boolean {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  
+  return now >= start && now <= end;
+}
+
+export function getMeetStatus(startDate: string, endDate: string): "upcoming" | "live" | "finished" {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  
+  if (now < start) return "upcoming";
+  if (now > end) return "finished";
+  return "live";
 }
