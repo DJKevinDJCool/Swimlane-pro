@@ -6,6 +6,7 @@ import {
   RefreshControl,
   Pressable,
   TextInput,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -74,7 +75,17 @@ function ClubCard({ club, onPress }: ClubCardProps) {
       <View
         style={[styles.clubIcon, { backgroundColor: theme.primary + "20" }]}
       >
-        <Feather name="users" size={24} color={theme.primary} />
+        {club.logoUrl ? (
+          <Image
+            source={{ uri: club.logoUrl }}
+            style={styles.clubLogo}
+            onError={() => {
+              // Fallback to icon if image fails to load
+            }}
+          />
+        ) : (
+          <Feather name="users" size={24} color={theme.primary} />
+        )}
       </View>
       <View style={styles.clubInfo}>
         <ThemedText type="h4" numberOfLines={1}>
@@ -106,6 +117,18 @@ async function fetchSwimmers(meetId: string): Promise<Swimmer[]> {
   return res.json();
 }
 
+async function fetchClubs(meetId: string): Promise<Club[]> {
+  const baseUrl = getApiUrl();
+  const res = await fetch(new URL(`/api/meets/${meetId}/clubs`, baseUrl));
+  if (!res.ok) throw new Error("Failed to fetch clubs");
+  const data = await res.json();
+  // Ensure gender code is correct for femaleCount (-1 not 2)
+  return data.map((club: any) => ({
+    ...club,
+    femaleCount: club.femaleCount || 0,
+  }));
+}
+
 export default function ClubsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -117,40 +140,13 @@ export default function ClubsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: swimmers, isLoading, refetch } = useQuery<Swimmer[]>({
-    queryKey: ["swimmers", meetId],
-    queryFn: () => fetchSwimmers(meetId),
+  const { data: clubs, isLoading, refetch } = useQuery<Club[]>({
+    queryKey: ["clubs", meetId],
+    queryFn: () => fetchClubs(meetId),
   });
 
-  const clubs = useMemo(() => {
-    if (!swimmers) return [];
-
-    const clubMap = new Map<number, Club>();
-
-    swimmers.forEach((swimmer) => {
-      const existing = clubMap.get(swimmer.meetSwimClubNumber);
-      if (existing) {
-        existing.swimmerCount++;
-        if (swimmer.gender === 1) existing.maleCount++;
-        else if (swimmer.gender === 2) existing.femaleCount++;
-      } else {
-        clubMap.set(swimmer.meetSwimClubNumber, {
-          id: swimmer.meetSwimClubNumber,
-          name: swimmer.swimClubName,
-          logoUrl: swimmer.swimClubLogoUrl,
-          swimmerCount: 1,
-          maleCount: swimmer.gender === 1 ? 1 : 0,
-          femaleCount: swimmer.gender === 2 ? 1 : 0,
-        });
-      }
-    });
-
-    return Array.from(clubMap.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-  }, [swimmers]);
-
   const filteredClubs = useMemo(() => {
+    if (!clubs) return [];
     if (!searchQuery.trim()) return clubs;
     const query = searchQuery.toLowerCase();
     return clubs.filter((club) => club.name.toLowerCase().includes(query));
@@ -217,7 +213,7 @@ export default function ClubsScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {clubs.length} klubber
+              {clubs?.length || 0} klubber
             </ThemedText>
             <View
               style={[
@@ -291,6 +287,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  clubLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
   },
   clubInfo: {
     flex: 1,

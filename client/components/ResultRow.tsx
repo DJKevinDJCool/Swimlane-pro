@@ -137,6 +137,11 @@ export function ResultRow({
           </View>
 
           <View style={styles.detailsRow}>
+            <View style={styles.detailItem}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
+                Heat {race.heatNumber}
+              </ThemedText>
+            </View>
             {race.swimClubName && !isRelay ? (
               <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
                 {race.swimClubName}
@@ -266,6 +271,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     flexWrap: "wrap",
+  },
+  detailItem: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   rightSection: {
     alignItems: "flex-end",

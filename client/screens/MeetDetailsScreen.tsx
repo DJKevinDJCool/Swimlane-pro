@@ -138,7 +138,14 @@ export default function MeetDetailsScreen() {
   const stats: MeetStats = useMemo(() => {
     const total = swimmers?.length || 0;
     const males = swimmers?.filter((s) => s.gender === 1).length || 0;
-    const females = swimmers?.filter((s) => s.gender === 2).length || 0;
+    const females = swimmers?.filter((s) => s.gender === -1).length || 0;
+    
+    // Debug: Log gender distribution
+    const genderDist = swimmers?.reduce((acc: any, s: any) => {
+      acc[s.gender] = (acc[s.gender] || 0) + 1;
+      return acc;
+    }, {}) || {};
+    console.log("Gender distribution:", genderDist, "Males:", males, "Females:", females);
     
     const clubIds = new Set(swimmers?.map((s) => s.meetSwimClubNumber) || []);
     const totalClubs = clubIds.size;
@@ -231,7 +238,6 @@ export default function MeetDetailsScreen() {
           <Feather name="droplet" size={18} color={theme.primary} />
           <ThemedText type="body">
             {meet.numberOfLanes} baner
-            {poolLength ? ` - ${poolLength} basseng` : ""}
           </ThemedText>
         </View>
       </View>

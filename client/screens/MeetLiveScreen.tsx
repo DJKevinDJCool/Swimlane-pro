@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -61,6 +61,7 @@ export default function MeetLiveScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProp>();
   const { meetId, meetName } = route.params;
+  const flatListRef = useRef<FlatList>(null);
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEventIndex, setSelectedEventIndex] = useState(0);
@@ -151,6 +152,36 @@ export default function MeetLiveScreen() {
     }
   };
 
+  const handleGoToLive = () => {
+    // Find the first event that hasn't finished yet
+    let nextEventIndex = events.findIndex((event) => {
+      const eventRaces = races?.filter((r) => r.eventNumber === event.eventNumber) || [];
+      const hasResults = eventRaces.some((r) => r.estimatedFinalTime);
+      const isFinished = eventRaces.every((r) => r.estimatedFinalTime);
+      
+      // If we have some results but not all finished, this is the current/ongoing event
+      // Or if we have no results at all, this is the next event
+      return !isFinished;
+    });
+
+    if (nextEventIndex === -1) {
+      // All events are finished, go to the last one
+      nextEventIndex = events.length - 1;
+    }
+
+    if (nextEventIndex !== selectedEventIndex) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedEventIndex(nextEventIndex);
+      
+      // Scroll to top to show the event selector and results
+      if (flatListRef.current) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }, 100);
+      }
+    }
+  };
+
   const renderRace = ({ item, index }: { item: Race; index: number }) => (
     <ResultRow
       race={item}
@@ -194,6 +225,7 @@ export default function MeetLiveScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <FlatList
+        ref={flatListRef}
         data={racesLoading ? [] : sortedRaces}
         renderItem={renderRace}
         keyExtractor={(item, index) => `${item.heatNumber}-${item.lane}-${index}`}
@@ -255,6 +287,45 @@ export default function MeetLiveScreen() {
               >
                 <Feather name="chevron-right" size={24} color={theme.text} />
               </Pressable>
+
+              <Pressable
+                onPress={handleGoToLive}
+                style={[styles.eventNavButton, { marginLeft: Spacing.sm }]}
+              >
+                <Feather name="activity" size={24} color={theme.primary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.eventListScroll}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
+                Velg øvelse:
+              </ThemedText>
+              <View style={styles.eventButtons}>
+                {events.map((event, idx) => (
+                  <Pressable
+                    key={event.eventNumber}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedEventIndex(idx);
+                    }}
+                    style={[
+                      styles.eventButton,
+                      {
+                        backgroundColor: idx === selectedEventIndex ? theme.primary : theme.backgroundDefault,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.eventButtonText,
+                        { color: idx === selectedEventIndex ? "#FFFFFF" : theme.text },
+                      ]}
+                    >
+                      Øv. {event.eventNumber}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             <View style={styles.sortRow}>
@@ -336,6 +407,23 @@ const styles = StyleSheet.create({
   eventInfo: {
     flex: 1,
     alignItems: "center",
+  },
+  eventListScroll: {
+    gap: Spacing.xs,
+  },
+  eventButtons: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    flexWrap: "wrap",
+  },
+  eventButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  eventButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   sortRow: {
     flexDirection: "row",

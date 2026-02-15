@@ -265,6 +265,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/meets/:meetId/stats", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const swimmersUrl = `${SWIMLANE_BASE}/Swimmers/${meetId}`;
+      const detailsUrl = `${SWIMLANE_BASE}/MeetEvents/${meetId}`;
+
+      const [swimmersRes, detailsRes] = await Promise.all([
+        fetch(swimmersUrl),
+        fetch(detailsUrl),
+      ]);
+
+      if (!swimmersRes.ok || !detailsRes.ok) {
+        return res.status(404).json({ error: "Stats not found" });
+      }
+
+      const swimmers = await swimmersRes.json();
+      const details = await detailsRes.json();
+
+      let maleCount = 0;
+      let femaleCount = 0;
+      const clubSet = new Set<number>();
+
+      if (Array.isArray(swimmers)) {
+        swimmers.forEach((swimmer: any) => {
+          // Males: no gender field (undefined)
+          // Females: gender === -1
+          // Mixed: gender === -2
+          if (swimmer.gender === undefined || swimmer.gender === null) maleCount++;
+          else if (swimmer.gender === -1) femaleCount++;
+          if (swimmer.meetSwimClubNumber) {
+            clubSet.add(swimmer.meetSwimClubNumber);
+          }
+        });
+      }
+
+      const sessions = details.sessions || [];
+      let totalEvents = 0;
+      sessions.forEach((session: any) => {
+        if (session.meetEvents) {
+          totalEvents += session.meetEvents.length;
+        }
+      });
+
+      const stats = {
+        totalSwimmers: (swimmers && Array.isArray(swimmers) ? swimmers.length : 0),
+        maleSwimmers: maleCount,
+        femaleSwimmers: femaleCount,
+        totalClubs: clubSet.size,
+        totalEvents,
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
   app.get("/api/meets/:meetId/documents", async (req, res) => {
     try {
       const { meetId } = req.params;
@@ -352,6 +410,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching update ID:", error);
       res.status(500).json({ error: "Failed to fetch update ID" });
+    }
+  });
+
+  app.get("/api/meets/:meetId/live/event", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const updateId = req.query.updateId as string;
+
+      if (!updateId) {
+        return res.status(400).json({ error: "updateId required" });
+      }
+
+      const url = `${SWIMLANE_BASE}/Live/${meetId}/${updateId}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Live event data not found" });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching live event data:", error);
+      res.status(500).json({ error: "Failed to fetch live event data" });
+    }
+  });
+
+  app.get("/api/meets/:meetId/live/current", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      
+      // Fetch both the update ID and the live data
+      const updateIdUrl = `${SWIMLANE_BASE}/Live/${meetId}/updateId`;
+      const updateIdResponse = await fetch(updateIdUrl);
+
+      if (!updateIdResponse.ok) {
+        return res.json({ event: null, updateId: 0, isRunning: false });
+      }
+
+      const updateId = parseInt(await updateIdResponse.text(), 10);
+      
+      const liveDataUrl = `${SWIMLANE_BASE}/Live/${meetId}/${updateId}`;
+      const liveDataResponse = await fetch(liveDataUrl);
+
+      if (!liveDataResponse.ok) {
+        return res.json({ event: null, updateId, isRunning: false });
+      }
+
+      const liveData = await liveDataResponse.json();
+      
+      res.json({
+        event: liveData,
+        updateId,
+        isRunning: true,
+      });
+    } catch (error) {
+      console.error("Error fetching current live event:", error);
+      res.status(500).json({ error: "Failed to fetch current live event" });
+    }
+  });
+
+  app.get("/api/meets/:meetId/clubs", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const swimmersUrl = `${SWIMLANE_BASE}/Swimmers/${meetId}`;
+      const response = await fetch(swimmersUrl);
+
+      if (!response.ok) {
+        return res.status(404).json({ error: "Clubs not found" });
+      }
+
+      const swimmers = await response.json();
+
+      if (!Array.isArray(swimmers)) {
+        return res.json([]);
+      }
+
+      // Group swimmers by club
+      const clubMap = new Map<number, any>();
+
+      swimmers.forEach((swimmer: any) => {
+        const clubId = swimmer.meetSwimClubNumber;
+        if (!clubMap.has(clubId)) {
+          clubMap.set(clubId, {
+            id: clubId,
+            name: swimmer.swimClubName || "Unknown Club",
+            swimmers: [],
+            maleCount: 0,
+            femaleCount: 0,
+          });
+        }
+
+        const club = clubMap.get(clubId)!;
+        club.swimmers.push(swimmer);
+        
+        if (swimmer.gender === 1) {
+          club.maleCount++;
+        } else if (swimmer.gender === -1) {
+          club.femaleCount++;
+        }
+      });
+
+      const clubs = Array.from(clubMap.values()).map((club) => ({
+        id: club.id,
+        name: club.name,
+        swimmerCount: club.swimmers.length,
+        maleCount: club.maleCount,
+        femaleCount: club.femaleCount,
+        logoUrl: club.swimmers[0]?.swimClubLogoUrl || null,
+      }));
+
+      res.json(clubs);
+    } catch (error) {
+      console.error("Error fetching clubs:", error);
+      res.status(500).json({ error: "Failed to fetch clubs" });
     }
   });
 

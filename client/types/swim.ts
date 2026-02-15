@@ -31,7 +31,7 @@ export interface MeetEvent {
   medleyDistanceNumber: number;
   stroke: number;
   session: number;
-  poolLength: number;
+  poolLength?: number;
   relay: number;
   eventRound: number;
   antallHeat: number;
@@ -43,6 +43,9 @@ export interface MeetEvent {
   eventDescription?: string;
   eventLength?: string;
   eventDate?: string;
+  maleCount?: number;
+  femaleCount?: number;
+  relayTeams?: RelayTeam[];
 }
 
 export interface Session {
@@ -80,6 +83,16 @@ export interface Swimmer {
   swimClubName: string;
   swimmerLogoUrl?: string;
   swimClubLogoUrl?: string;
+}
+
+export interface RelayTeam {
+  teamName: string;
+  swimmers: {
+    firstName: string;
+    lastName: string;
+    clubName: string;
+    time?: number;
+  }[];
 }
 
 export interface Club {
@@ -168,6 +181,17 @@ export interface Document {
 export interface DocumentGroup {
   heading: string;
   documents: Document[];
+}
+
+export interface LiveEventData {
+  eventNumber: number;
+  eventDescription: string;
+  currentHeat?: number;
+  currentLane?: number;
+  isRunning: boolean;
+  estimatedRemainingTime?: number;
+  updateId?: number;
+  races?: LiveRace[];
 }
 
 export interface MeetStats {
@@ -282,4 +306,51 @@ export function getRelayTeamMembers(race: Race): TeamMember[] {
 export function isRelayRace(race: Race): boolean {
   const teamMembers = getRelayTeamMembers(race);
   return teamMembers.length > 1;
+}
+export function getEventGenderCounts(event: MeetEvent, races: Race[] = []): { male: number; female: number } {
+  if (event.maleCount !== undefined && event.femaleCount !== undefined) {
+    return {
+      male: event.maleCount,
+      female: event.femaleCount,
+    };
+  }
+
+  let maleCount = 0;
+  let femaleCount = 0;
+
+  races.forEach((race) => {
+    if (race.gender === 1 || (!race.gender && getRaceGender(race) === "male")) {
+      maleCount++;
+    } else if (race.gender === -1 || getRaceGender(race) === "female") {
+      femaleCount++;
+    }
+  });
+
+  return { male: maleCount, female: femaleCount };
+}
+
+export function getMeetStatsFromSwimmers(swimmers: Swimmer[]): MeetStats {
+  const clubMap = new Map<number, Set<number>>();
+  let maleCount = 0;
+  let femaleCount = 0;
+
+  swimmers.forEach((swimmer) => {
+    if (swimmer.gender === 1) {
+      maleCount++;
+    } else if (swimmer.gender === -1) {
+      femaleCount++;
+    }
+
+    const clubSet = clubMap.get(swimmer.meetSwimClubNumber) || new Set();
+    clubSet.add(swimmer.meetSwimmerNumber);
+    clubMap.set(swimmer.meetSwimClubNumber, clubSet);
+  });
+
+  return {
+    totalSwimmers: swimmers.length,
+    maleSwimmers: maleCount,
+    femaleSwimmers: femaleCount,
+    totalClubs: clubMap.size,
+    totalEvents: 0,
+  };
 }
