@@ -1,18 +1,18 @@
-Swimlane Pro 🏊‍♂️
+#  Swimlane Pro 🏊‍♂️
 Swimlane Pro er en profesjonell applikasjon for sporing av svømmestevner i sanntid. Appen gir utøvere, trenere og entusiaster umiddelbar tilgang til resultater, startlister og en unik live-visualisering av aktive heat.
-	---
-✨ Funksjoner
-Live Race Tracker: Følg svømmernes posisjon i bassenget i sanntid med animerte baner.
 
-Stevne-oversikt: Bla gjennom pågående, kommende og avsluttede stevner.
+# ✨ Funksjoner
+**Live Race Tracker: Følg svømmernes posisjon i bassenget i sanntid med animerte baner.**
 
-Detaljerte Resultater: Full tilgang til splittider, offisielle resultatlister og dokumenter (PDF).
+**Stevne-oversikt: Bla gjennom pågående, kommende og avsluttede stevner.**
 
-Utøverprofiler: Søk opp svømmere og se deres personlige rekorder og historiske resultater.
+**Detaljerte Resultater: Full tilgang til splittider, offisielle resultatlister og dokumenter (PDF).**
 
-Mørk/Lys Modus: Full støtte for systemvalgt tema med et moderne, sportsfokusert design.
+**Utøverprofiler: Søk opp svømmere og se deres personlige rekorder og historiske resultater.**
 
-🚀 Teknisk Stack
+**Mørk/Lys Modus: Full støtte for systemvalgt tema med et moderne, sportsfokusert design.**
+
+# 🚀 Teknisk Stack
 Frontend: React Native med Expo (TypeScript)
 
 State Management: TanStack Query (React Query)
@@ -23,7 +23,7 @@ Backend: Node.js med Express
 
 API: Integrasjon mot Livetiming/Medley-data
 
-🛠 Installasjon og Oppstart
+# 🛠 Installasjon og Oppstart
 
 Før du begynner, sørg for at du har Node.js installert.
 
@@ -50,9 +50,9 @@ macOS/Linux:
 
 `npx expo start`
 
-Bruk Expo Go på din telefon (iOS/Android) for å skanne QR-koden, eller trykk a for Android-emulator / i for iOS-simulator.
+# Bruk Expo Go på din telefon (iOS/Android) for å skanne QR-koden, eller trykk a for Android-emulator / i for iOS-simulator.
 
-📂 Prosjektstruktur
+# 📂 Prosjektstruktur
 client/: Expo-applikasjonen (skjermer, komponenter, hooks).
 server/: Express API-server som håndterer datahenting og logikk.
 shared/: Delte typer og valideringsskjemaer.
